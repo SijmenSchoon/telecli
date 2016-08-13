@@ -4,6 +4,11 @@ from .mtbytearray import MTByteArray
 __objects = {}
 
 
+def __add_object(obj):
+    assert obj.MAGIC not in __objects
+    __objects[obj.MAGIC] = obj
+
+
 def deserialize(buffer, offset=0):
     magic, = struct.unpack_from('I', buffer, offset=offset)
     try:
@@ -50,7 +55,7 @@ class TLVector:
     def __repr__(self):
         return 'TLVector#%x(values=%r)' % (self.MAGIC, self.values)
 
-__objects[TLVector.MAGIC] = TLVector
+__add_object(TLVector)
 
 
 class TLMsgsAck:
@@ -77,7 +82,7 @@ class TLMsgsAck:
     def __repr__(self):
         return 'TLMsgsAck#%x(msg_ids=%r)' % (self.MAGIC, self.msg_ids)
 
-__objects[TLMsgsAck.MAGIC] = TLMsgsAck
+__add_object(TLMsgsAck)
 
 
 class TLMsgContainer:
@@ -112,7 +117,7 @@ class TLMsgContainer:
     def __repr__(self):
         return 'TLMsgContainer#%x(messages=%r)' % (self.MAGIC, self.messages)
 
-__objects[TLMsgContainer.MAGIC] = TLMsgContainer
+__add_object(TLMsgContainer)
 
 
 class TLMessage:
@@ -145,7 +150,7 @@ class TLMessage:
     def __repr__(self):
         return 'TLMessage#%x(msg_id=%d)' % (self.MAGIC, self.msg_id)
 
-__objects[TLMessage.MAGIC] = TLMessage
+__add_object(TLMessage)
 
 
 class TLMsgResendReq:
@@ -172,7 +177,7 @@ class TLMsgResendReq:
     def __repr__(self):
         return 'TLMsgResendReq#%x(msg_ids=%r)' % (self.MAGIC, self.msg_ids)
 
-__objects[TLMsgResendReq.MAGIC] = TLMsgResendReq
+__add_object(TLMsgResendReq)
 
 
 class TLRpcError:
@@ -201,7 +206,7 @@ class TLRpcError:
     def __repr__(self):
         return 'TLRpcReqError#%x(error_code=%d, error_message=%r)' % (self.MAGIC, self.error_code, self.error_message)
 
-__objects[TLRpcError.MAGIC] = TLRpcError
+__add_object(TLRpcError)
 
 
 class TLRpcReqError:
@@ -233,7 +238,7 @@ class TLRpcReqError:
         return 'TLRpcReqError#%x(query_id=%d, error_code=%d, error_message=%r)' % \
                (self.MAGIC, self.query_id, self.error_code, self.error_message)
 
-__objects[TLRpcReqError.MAGIC] = TLRpcReqError
+__add_object(TLRpcReqError)
 
 
 class TLClientDHInnerData:
@@ -267,7 +272,7 @@ class TLClientDHInnerData:
     def __repr__(self):
         return 'TLClientDHInnerData#%x(...)' % self.MAGIC
 
-__objects[TLClientDHInnerData.MAGIC] = TLClientDHInnerData
+__add_object(TLClientDHInnerData)
 
 
 class TLServerDHInnerData:
@@ -314,7 +319,7 @@ class TLServerDHInnerData:
     def __repr__(self):
         return 'TLServerDHInnerData#%x(...)' % self.MAGIC
 
-__objects[TLServerDHInnerData.MAGIC] = TLServerDHInnerData
+__add_object(TLServerDHInnerData)
 
 
 class TLReqPQ:
@@ -341,7 +346,7 @@ class TLReqPQ:
     def __repr__(self):
         return 'TLReqPQ#%x(...)' % self.MAGIC
 
-__objects[TLReqPQ.MAGIC] = TLReqPQ
+__add_object(TLReqPQ)
 
 
 class TLReqDHParams:
@@ -393,7 +398,7 @@ class TLReqDHParams:
     def __repr__(self):
         return 'TLReqDHParams#%x(...)' % self.MAGIC
 
-__objects[TLReqDHParams.MAGIC] = TLReqDHParams
+__add_object(TLReqDHParams)
 
 
 class TLSetClientDHParams:
@@ -426,7 +431,7 @@ class TLSetClientDHParams:
     def __repr__(self):
         return 'TLSetClientDHParams#%x(...)' % self.MAGIC
 
-__objects[TLSetClientDHParams.MAGIC] = TLSetClientDHParams
+__add_object(TLSetClientDHParams)
 
 
 class TLRpcDropAnswer:
@@ -453,7 +458,7 @@ class TLRpcDropAnswer:
     def __repr__(self):
         return 'TLRpcDropAnswer#%x(req_msg_id=%d)' % (self.MAGIC, self.req_msg_id)
 
-__objects[TLRpcDropAnswer.MAGIC] = TLRpcDropAnswer
+__add_object(TLRpcDropAnswer)
 
 
 class TLGetFutureSalts:
@@ -480,7 +485,7 @@ class TLGetFutureSalts:
     def __repr__(self):
         return 'TLGetFutureSalts#%x(num=%d)' % (self.MAGIC, self.num)
 
-__objects[TLGetFutureSalts.MAGIC] = TLGetFutureSalts
+__add_object(TLGetFutureSalts)
 
 
 class TLPing:
@@ -507,7 +512,7 @@ class TLPing:
     def __repr__(self):
         return 'TLPing#%x(ping_id=%d)' % (self.MAGIC, self.ping_id)
 
-__objects[TLPing.MAGIC] = TLPing
+__add_object(TLPing)
 
 
 class TLPingDelayDisconnect:
@@ -536,6 +541,6 @@ class TLPingDelayDisconnect:
         return 'TLPingDelayDisconnect#%x(ping_id=%d, disconnect_delay=%d)' % \
                (self.MAGIC, self.ping_id, self.disconnect_delay)
 
-__objects[TLPingDelayDisconnect.MAGIC] = TLPingDelayDisconnect
+__add_object(TLPingDelayDisconnect)
 
 
