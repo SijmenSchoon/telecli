@@ -1,46 +1,38 @@
 import struct
+import math
 
 
-# TODO rewrite this ugly function
-def read_string(buffer, offset=0):
-    orig_offset = offset
+class MTByteArray:
+    def __init__(self, val=b''):
+        self.s = val
 
-    l, = struct.unpack_from('B', buffer, offset=offset)
-    offset += 1
+    def deserialize(self, buffer, offset=0):
+        if buffer[offset] < 254:
+            length = buffer[offset]
+            self.s = buffer[offset + 1:offset + 1 + length]
+        else:
+            length = struct.unpack_from('I', buffer, offset=offset)[0] >> 8
+            self.s = buffer[offset + 4:offset + 4 + length]
 
-    sl = 1
-    if l >= 254:
-        l1, l2, l3 = struct.unpack_from('3B', buffer, offset=offset)
-        offset += 3
+    def serialize(self):
+        if len(self.s) < 254:
+            size_buf = struct.pack('B', len(self.s))
+        else:
+            size_buf = struct.pack('I', len(self.s) << 8 | 254)
 
-        l = l1 | l2 << 8 | l3 << 16
-        sl = 4
+        padding = -(len(self.s) + len(size_buf)) % 4
+        return size_buf + self.s + bytes(padding)
 
-    addition = (l + sl) % 4
-    if addition != 0:
-        addition = 4 - addition
+    @property
+    def serialized_size(self):
+        unpadded_size = (1 if len(self.s) < 254 else 4) + len(self.s)
+        return math.ceil(unpadded_size / 4) * 4
 
-    s, = struct.unpack_from('%ds' % l, buffer, offset=offset)
-    offset += l + addition
-
-    return s.decode('utf-8'), (offset - orig_offset)
-
-
-def write_string(s):
-    if len(s) < 254:
-        len_buf = struct.pack('B', len(s))
-    else:
-        len_buf = struct.pack('3B', len(s) & 0xff, (len(s) >> 8) & 0xff, (len(s) >> 16) & 0xff)
-
-    addition = (len(s) + len(len_buf)) % 4
-    return len_buf + s + b'\0' * addition
+    def __repr__(self):
+        return 'MTByteArray(%r)' % self.s
 
 
 class IncorrectMagicNumberError(Exception):
-    pass
-
-
-class UnsupportedObjectError(Exception):
     pass
 
 
