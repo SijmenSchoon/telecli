@@ -82,7 +82,6 @@ class TLVector:
     def __repr__(self):
         return '<TLVector: %r>' % self.values
 
-
 TLObject.objects[TLVector.MAGIC] = TLVector
 
 
@@ -109,7 +108,6 @@ class TLMsgsAck:
 
     def __repr__(self):
         return '<TLMsgsAck: msg_ids=%r>' % self.msg_ids
-
 
 TLObject.objects[TLMsgsAck.MAGIC] = TLMsgsAck
 
@@ -146,7 +144,6 @@ class TLMsgContainer:
     def __repr__(self):
         return '<TLMsgContainer: TLMessage * %d>' % len(self.messages)
 
-
 TLObject.objects[TLMsgContainer.MAGIC] = TLMsgContainer
 
 
@@ -180,7 +177,6 @@ class TLMessage:
     def __repr__(self):
         return '<TLMessage: msg_id=%d>' % self.msg_id
 
-
 TLObject.objects[TLMessage.MAGIC] = TLMessage
 
 
@@ -207,7 +203,6 @@ class TLMsgResendReq:
 
     def __repr__(self):
         return '<TLMsgResendReq: msg_ids=%r>' % self.msg_ids
-
 
 TLObject.objects[TLMsgResendReq.MAGIC] = TLMsgResendReq
 
@@ -237,7 +232,6 @@ class TLRpcError:
 
     def __repr__(self):
         return '<TLRpcError: %d:%s>' % (self.error_code, self.error_message)
-
 
 TLObject.objects[TLRpcError.MAGIC] = TLRpcError
 
@@ -269,7 +263,6 @@ class TLRpcReqError:
 
     def __repr__(self):
         return '<TLRpcError: %d:%s>' % (self.error_code, self.error_message)
-
 
 TLObject.objects[TLRpcReqError.MAGIC] = TLRpcReqError
 
@@ -304,7 +297,6 @@ class TLClientDHInnerData:
 
     def __repr__(self):
         return '<TLClientDHInnerData>'
-
 
 TLObject.objects[TLClientDHInnerData.MAGIC] = TLClientDHInnerData
 
@@ -352,7 +344,6 @@ class TLServerDHInnerData:
     def __repr__(self):
         return '<TLServerDHInnerData>'
 
-
 TLObject.objects[TLServerDHInnerData.MAGIC] = TLServerDHInnerData
 
 
@@ -379,7 +370,6 @@ class TLReqPQ:
 
     def __repr__(self):
         return '<TLReqPQ>'
-
 
 TLObject.objects[TLReqPQ.MAGIC] = TLReqPQ
 
@@ -429,5 +419,61 @@ class TLReqDHParams:
     def serialized_size(self):
         return 44 + self.p.serialized_size + self.q.serialized_size + self.encrypted_data.serialized_size
 
-
 TLObject.objects[TLReqDHParams.MAGIC] = TLReqDHParams
+
+
+class TLSetClientDHParams:
+    MAGIC = 0xf5045f1f
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.encrypted_data = MTByteArray()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+
+        self.nonce, self.server_nonce = struct.unpack_from('16s16s', buffer, offset=offset + 4)
+        self.encrypted_data.deserialize(buffer, offset=offset + 36)
+
+    def serialize(self):
+        encrypted_data_b = self.encrypted_data.serialize()
+        return struct.pack('I16s16s%ds' % len(encrypted_data_b),
+                           self.MAGIC, self.nonce, self.server_nonce, encrypted_data_b)
+
+    @property
+    def serialized_size(self):
+        return 36 + self.encrypted_data.serialized_size
+
+TLObject.objects[TLSetClientDHParams.MAGIC] = TLSetClientDHParams
+
+
+class TLRpcDropAnswer:
+    MAGIC = 0x58e4a740
+
+    def __init__(self, buffer=None, offset=0):
+        self.req_msg_id = 0
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.req_msg_id, = struct.unpack_from('q', buffer, offset=offset + 4)
+
+    def serialize(self):
+        return struct.pack('Iq', self.MAGIC, self.req_msg_id)
+
+    @property
+    def serialized_size(self):
+        return 12
+
+    def __repr__(self):
+        return 'TLRpcDropAnswer#%d(req_msg_id=%d)' % (self.MAGIC, self.req_msg_id)
+
+TLObject.objects[TLRpcDropAnswer.MAGIC] = TLRpcDropAnswer
