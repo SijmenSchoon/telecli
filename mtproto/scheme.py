@@ -486,3 +486,86 @@ class TLRpcDropAnswer:
         return 'TLRpcDropAnswer#%x(req_msg_id=%d)' % (self.MAGIC, self.req_msg_id)
 
 TLObject.objects[TLRpcDropAnswer.MAGIC] = TLRpcDropAnswer
+
+
+class TLGetFutureSalts:
+    MAGIC = 0xb921bd04
+
+    def __init__(self, buffer=None, offset=0):
+        self.num = 0
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.num, = struct.unpack_from('i', buffer, offset=offset + 4)
+
+    def serialize(self):
+        return struct.pack('Ii', self.MAGIC, self.num)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Ii')
+
+    def __repr__(self):
+        return 'TLGetFutureSalts#%x(num=%d)' % (self.MAGIC, self.num)
+
+TLObject.objects[TLGetFutureSalts.MAGIC] = TLGetFutureSalts
+
+
+class TLPing:
+    MAGIC = 0x7abe77ec
+
+    def __init__(self, buffer=None, offset=0):
+        self.ping_id = 0
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.ping_id = struct.unpack_from('q', buffer, offset=offset + 4)
+
+    def serialize(self):
+        return struct.pack('Iq', self.MAGIC, self.ping_id)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Iq')
+
+    def __repr__(self):
+        return 'TLPing#%x(ping_id=%d)' % (self.MAGIC, self.ping_id)
+
+TLObject.objects[TLPing.MAGIC] = TLPing
+
+
+class TLPingDelayDisconnect:
+    MAGIC = 0xf3427b8c
+
+    def __init__(self, buffer=None, offset=0):
+        self.ping_id = 0
+        self.disconnect_delay = 0
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.ping_id, self.disconnect_delay = struct.unpack_from('qi', buffer, offset=offset + 4)
+
+    def serialize(self):
+        return struct.pack('Iqi', self.MAGIC, self.ping_id, self.disconnect_delay)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Iqi')
+
+    def __repr__(self):
+        return 'TLPingDelayDisconnect#%x(ping_id=%d, disconnect_delay=%d)' % \
+               (self.MAGIC, self.ping_id, self.disconnect_delay)
+
+TLObject.objects[TLPingDelayDisconnect.MAGIC] = TLPingDelayDisconnect
