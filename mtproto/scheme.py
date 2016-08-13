@@ -2,6 +2,17 @@ import struct
 import math
 
 
+__objects = {}
+
+
+def deserialize(buffer, offset=0):
+    magic, = struct.unpack_from('I', buffer, offset=offset)
+    try:
+        return __objects[magic](buffer, offset=offset)
+    except KeyError:
+        raise NotImplementedError(hex(magic))
+
+
 class MTByteArray:
     def __init__(self, val=b''):
         self.s = val
@@ -34,18 +45,6 @@ class MTByteArray:
 
 class IncorrectMagicNumberError(Exception):
     pass
-
-
-class TLObject:
-    objects = {}
-
-    @staticmethod
-    def deserialize(buffer, offset=0):
-        magic, = struct.unpack_from('I', buffer, offset=offset)
-        try:
-            return TLObject.objects[magic](buffer, offset=offset)
-        except KeyError:
-            raise NotImplementedError(hex(magic))
 
 
 class TLVector:
@@ -82,7 +81,7 @@ class TLVector:
     def __repr__(self):
         return 'TLVector#%x(values=%r)' % (self.MAGIC, self.values)
 
-TLObject.objects[TLVector.MAGIC] = TLVector
+__objects[TLVector.MAGIC] = TLVector
 
 
 class TLMsgsAck:
@@ -109,7 +108,7 @@ class TLMsgsAck:
     def __repr__(self):
         return 'TLMsgsAck#%x(msg_ids=%r)' % (self.MAGIC, self.msg_ids)
 
-TLObject.objects[TLMsgsAck.MAGIC] = TLMsgsAck
+__objects[TLMsgsAck.MAGIC] = TLMsgsAck
 
 
 class TLMsgContainer:
@@ -144,7 +143,7 @@ class TLMsgContainer:
     def __repr__(self):
         return 'TLMsgContainer#%x(messages=%r)' % (self.MAGIC, self.messages)
 
-TLObject.objects[TLMsgContainer.MAGIC] = TLMsgContainer
+__objects[TLMsgContainer.MAGIC] = TLMsgContainer
 
 
 class TLMessage:
@@ -177,7 +176,7 @@ class TLMessage:
     def __repr__(self):
         return 'TLMessage#%x(msg_id=%d)' % (self.MAGIC, self.msg_id)
 
-TLObject.objects[TLMessage.MAGIC] = TLMessage
+__objects[TLMessage.MAGIC] = TLMessage
 
 
 class TLMsgResendReq:
@@ -204,7 +203,7 @@ class TLMsgResendReq:
     def __repr__(self):
         return 'TLMsgResendReq#%x(msg_ids=%r)' % (self.MAGIC, self.msg_ids)
 
-TLObject.objects[TLMsgResendReq.MAGIC] = TLMsgResendReq
+__objects[TLMsgResendReq.MAGIC] = TLMsgResendReq
 
 
 class TLRpcError:
@@ -233,7 +232,7 @@ class TLRpcError:
     def __repr__(self):
         return 'TLRpcReqError#%x(error_code=%d, error_message=%r)' % (self.MAGIC, self.error_code, self.error_message)
 
-TLObject.objects[TLRpcError.MAGIC] = TLRpcError
+__objects[TLRpcError.MAGIC] = TLRpcError
 
 
 class TLRpcReqError:
@@ -265,7 +264,7 @@ class TLRpcReqError:
         return 'TLRpcReqError#%x(query_id=%d, error_code=%d, error_message=%r)' % \
                (self.MAGIC, self.query_id, self.error_code, self.error_message)
 
-TLObject.objects[TLRpcReqError.MAGIC] = TLRpcReqError
+__objects[TLRpcReqError.MAGIC] = TLRpcReqError
 
 
 class TLClientDHInnerData:
@@ -299,7 +298,7 @@ class TLClientDHInnerData:
     def __repr__(self):
         return 'TLClientDHInnerData#%x(...)' % self.MAGIC
 
-TLObject.objects[TLClientDHInnerData.MAGIC] = TLClientDHInnerData
+__objects[TLClientDHInnerData.MAGIC] = TLClientDHInnerData
 
 
 class TLServerDHInnerData:
@@ -346,14 +345,14 @@ class TLServerDHInnerData:
     def __repr__(self):
         return 'TLServerDHInnerData#%x(...)' % self.MAGIC
 
-TLObject.objects[TLServerDHInnerData.MAGIC] = TLServerDHInnerData
+__objects[TLServerDHInnerData.MAGIC] = TLServerDHInnerData
 
 
 class TLReqPQ:
     MAGIC = 0x60469778
 
-    def __init__(self, buffer=None, offset=0):
-        self.nonce = bytes()
+    def __init__(self, buffer=None, offset=0, nonce=bytes()):
+        self.nonce = nonce
 
         if buffer is not None:
             self.deserialize(buffer, offset)
@@ -373,7 +372,7 @@ class TLReqPQ:
     def __repr__(self):
         return 'TLReqPQ#%x(...)' % self.MAGIC
 
-TLObject.objects[TLReqPQ.MAGIC] = TLReqPQ
+__objects[TLReqPQ.MAGIC] = TLReqPQ
 
 
 class TLReqDHParams:
@@ -425,7 +424,7 @@ class TLReqDHParams:
     def __repr__(self):
         return 'TLReqDHParams#%x(...)' % self.MAGIC
 
-TLObject.objects[TLReqDHParams.MAGIC] = TLReqDHParams
+__objects[TLReqDHParams.MAGIC] = TLReqDHParams
 
 
 class TLSetClientDHParams:
@@ -458,7 +457,7 @@ class TLSetClientDHParams:
     def __repr__(self):
         return 'TLSetClientDHParams#%x(...)' % self.MAGIC
 
-TLObject.objects[TLSetClientDHParams.MAGIC] = TLSetClientDHParams
+__objects[TLSetClientDHParams.MAGIC] = TLSetClientDHParams
 
 
 class TLRpcDropAnswer:
@@ -485,7 +484,7 @@ class TLRpcDropAnswer:
     def __repr__(self):
         return 'TLRpcDropAnswer#%x(req_msg_id=%d)' % (self.MAGIC, self.req_msg_id)
 
-TLObject.objects[TLRpcDropAnswer.MAGIC] = TLRpcDropAnswer
+__objects[TLRpcDropAnswer.MAGIC] = TLRpcDropAnswer
 
 
 class TLGetFutureSalts:
@@ -512,7 +511,7 @@ class TLGetFutureSalts:
     def __repr__(self):
         return 'TLGetFutureSalts#%x(num=%d)' % (self.MAGIC, self.num)
 
-TLObject.objects[TLGetFutureSalts.MAGIC] = TLGetFutureSalts
+__objects[TLGetFutureSalts.MAGIC] = TLGetFutureSalts
 
 
 class TLPing:
@@ -539,7 +538,7 @@ class TLPing:
     def __repr__(self):
         return 'TLPing#%x(ping_id=%d)' % (self.MAGIC, self.ping_id)
 
-TLObject.objects[TLPing.MAGIC] = TLPing
+__objects[TLPing.MAGIC] = TLPing
 
 
 class TLPingDelayDisconnect:
@@ -568,4 +567,6 @@ class TLPingDelayDisconnect:
         return 'TLPingDelayDisconnect#%x(ping_id=%d, disconnect_delay=%d)' % \
                (self.MAGIC, self.ping_id, self.disconnect_delay)
 
-TLObject.objects[TLPingDelayDisconnect.MAGIC] = TLPingDelayDisconnect
+__objects[TLPingDelayDisconnect.MAGIC] = TLPingDelayDisconnect
+
+
