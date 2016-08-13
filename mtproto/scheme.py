@@ -544,3 +544,86 @@ class TLPingDelayDisconnect:
 __add_object(TLPingDelayDisconnect)
 
 
+class TLDestroySession:
+    MAGIC = 0xe7512126
+
+    def __init__(self, buffer=None, offset=0, session_id=0):
+        self.session_id = session_id
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.session_id, = struct.unpack_from('q', buffer, offset=offset + 4)
+
+    def serialize(self):
+        return struct.pack('Iq', self.MAGIC, self.session_id)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Iq')
+
+    def __repr__(self):
+        return 'TLDestroySession#%x(session_id=%d)' % (self.MAGIC, self.session_id)
+
+__add_object(TLDestroySession)
+
+
+class TLGzipPacked:
+    MAGIC = 0x3072cfa1
+
+    def __init__(self, buffer=None, offset=0, packed_data=MTByteArray()):
+        self.packed_data = packed_data
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.packed_data.deserialize(buffer, offset + 4)
+
+    def serialize(self):
+        packed_data_b = self.packed_data.serialize()
+        return struct.pack('I%ds' % len(packed_data_b), self.MAGIC, packed_data_b)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('I%ds' % self.packed_data.serialized_size)
+
+    def __repr__(self):
+        return 'TLGzipPacked#%x(...)' % self.MAGIC
+
+__add_object(TLGzipPacked)
+
+
+class TLError:
+    MAGIC = 0xc4b9f9bb
+
+    def __init__(self, buffer=None, offset=0, code=0, text=MTByteArray()):
+        self.code = code
+        self.text = text
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.code, = struct.unpack_from('i', buffer, offset=offset + 4)
+        self.text.deserialize(buffer, offset=offset + 8)
+
+    def serialize(self):
+        text_b = self.text.serialize()
+        return struct.pack('Ii%ds' % len(text_b), self.MAGIC, self.code, text_b)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Ii%ds' % self.text.serialized_size)
+
+    def __repr__(self):
+        return 'TLError#%x(code=%d, text=%r)' % (self.MAGIC, self.code, self.text)
+
+__add_object(TLError)
