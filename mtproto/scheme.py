@@ -45,11 +45,7 @@ class TLObject:
         try:
             return TLObject.objects[magic](buffer, offset=offset)
         except KeyError:
-            raise UnsupportedObjectError(hex(magic))
-
-    @property
-    def needs_layer(self):
-        return False
+            raise NotImplementedError(hex(magic))
 
 
 class TLVector:
@@ -221,8 +217,7 @@ class TLRpcError:
 
     def __init__(self, buffer=None, offset=0):
         self.error_code = 0
-        self.error_message = ''
-        self.__str_size = 0
+        self.error_message = MTByteArray()
         if buffer is not None:
             self.deserialize(buffer, offset)
 
@@ -230,18 +225,19 @@ class TLRpcError:
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
             raise IncorrectMagicNumberError
         self.error_code, = struct.unpack_from('i', buffer, offset=offset + 4)
-        self.error_message, self.__str_size = read_string(buffer, offset=offset + 8)
+        self.error_message.deserialize(buffer, offset=offset + 8)
 
     def serialize(self):
-        s = write_string(self.error_message)
+        s = self.error_message.serialize()
         return struct.pack('Ii%ds' % len(s), self.MAGIC, self.error_code, s)
 
     @property
     def serialized_size(self):
-        return 8 + self.__str_size
+        return 8 + self.error_message.serialized_size
 
     def __repr__(self):
         return '<TLRpcError: %d:%s>' % (self.error_code, self.error_message)
+
 
 TLObject.objects[TLRpcError.MAGIC] = TLRpcError
 
@@ -252,7 +248,7 @@ class TLRpcReqError:
     def __init__(self, buffer=None, offset=0):
         self.query_id = 0
         self.error_code = 0
-        self.error_message = ''
+        self.error_message = MTByteArray()
         self.__str_size = 0
         if buffer is not None:
             self.deserialize(buffer, offset)
@@ -261,11 +257,11 @@ class TLRpcReqError:
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
             raise IncorrectMagicNumberError
         self.query_id, self.error_code = struct.unpack_from('qi', buffer, offset=offset + 4)
-        self.error_message, self.__str_size = read_string(buffer, offset=offset + 12)
+        self.error_message.deserialize(buffer, offset)
 
     def serialize(self):
-        s = write_string(self.error_message)
-        return struct.pack('Iqi%ds' % len(s), self.MAGIC, self.query_id, self.error_code, s)
+        error_b = self.error_message.serialize()
+        return struct.pack('Iqi%ds' % len(error_b), self.MAGIC, self.query_id, self.error_code, error_b)
 
     @property
     def serialized_size(self):
@@ -274,4 +270,164 @@ class TLRpcReqError:
     def __repr__(self):
         return '<TLRpcError: %d:%s>' % (self.error_code, self.error_message)
 
+
 TLObject.objects[TLRpcReqError.MAGIC] = TLRpcReqError
+
+
+class TLClientDHInnerData:
+    MAGIC = 0x6643b654
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.retry_id = 0
+
+        # TODO Figure out what this is and rename it to something more appropriate
+        self.g_b = MTByteArray()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        raise NotImplementedError
+
+    def serialize(self):
+        gb_b = self.g_b.serialize()
+        return struct.pack('I%ds%dsq%ds' % (len(self.nonce), len(self.server_nonce), len(gb_b)),
+                           self.MAGIC, self.nonce, self.server_nonce, self.retry_id, gb_b)
+
+    @property
+    def serialized_size(self):
+        return 12 + len(self.nonce) + len(self.server_nonce) + self.g_b.serialized_size
+
+    def __repr__(self):
+        return '<TLClientDHInnerData>'
+
+
+TLObject.objects[TLClientDHInnerData.MAGIC] = TLClientDHInnerData
+
+
+class TLServerDHInnerData:
+    MAGIC = 0xb5890dba
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.g = 0
+        self.dh_prime = MTByteArray()
+        self.g_a = MTByteArray()
+        self.server_time = 0
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        offset += 4
+
+        self.nonce, self.server_nonce, self.g = struct.unpack_from('16s16sI', buffer, offset=offset)
+        offset += len(self.nonce) + len(self.server_nonce) + 4
+
+        self.dh_prime.deserialize(buffer, offset=offset)
+        offset += self.dh_prime.serialized_size
+
+        self.g_a.deserialize(buffer, offset=offset)
+        offset += self.g_a.serialized_size
+
+        self.server_time = struct.unpack_from('i', buffer, offset=offset)
+
+    def serialize(self):
+        dh_prime_b = self.dh_prime.serialize()
+        g_a_b = self.g_a.serialize()
+        return struct.pack('I%ds%dsI%ds%dsi' % (len(self.nonce), len(self.server_nonce), len(dh_prime_b), len(g_a_b)),
+                           self.MAGIC, self.nonce, self.server_nonce, self.g, dh_prime_b, g_a_b, self.server_time)
+
+    @property
+    def serialized_size(self):
+        return 12 + len(self.nonce) + len(self.server_nonce) + self.dh_prime.serialized_size + self.g_a.serialized_size
+
+    def __repr__(self):
+        return '<TLServerDHInnerData>'
+
+
+TLObject.objects[TLServerDHInnerData.MAGIC] = TLServerDHInnerData
+
+
+class TLReqPQ:
+    MAGIC = 0x60469778
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.nonce, = struct.unpack_from('16s', buffer, offset=offset + 4)
+
+    def serialize(self):
+        return struct.pack('I%ds' % len(self.nonce), self.MAGIC, self.nonce)
+
+    @property
+    def serialized_size(self):
+        return 4 + len(self.nonce)
+
+    def __repr__(self):
+        return '<TLReqPQ>'
+
+
+TLObject.objects[TLReqPQ.MAGIC] = TLReqPQ
+
+
+class TLReqDHParams:
+    MAGIC = 0xd712e4be
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.p = MTByteArray()
+        self.q = MTByteArray()
+        self.public_key_fingerprint = 0
+        self.encrypted_data = MTByteArray()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        offset += 4
+
+        self.nonce, self.server_nonce = struct.unpack_from('16s16s', buffer, offset=offset)
+        offset += 32
+
+        self.p.deserialize(buffer, offset=offset)
+        offset += self.p.serialized_size
+
+        self.q.deserialize(buffer, offset=offset)
+        offset += self.q.serialized_size
+
+        self.public_key_fingerprint, = struct.unpack_from('q', buffer, offset=offset)
+        offset += 8
+
+        self.encrypted_data.deserialize(buffer, offset=offset)
+
+    def serialize(self):
+        p_b = self.p.serialize()
+        q_b = self.q.serialize()
+        encrypted_data_b = self.encrypted_data.serialize()
+
+        return struct.pack('I16s16s%ds%dsq%ds' % (len(p_b), len(q_b), len(encrypted_data_b)), self.MAGIC, self.nonce,
+                           self.server_nonce, p_b, q_b, self.public_key_fingerprint, encrypted_data_b)
+
+    @property
+    def serialized_size(self):
+        return 44 + self.p.serialized_size + self.q.serialized_size + self.encrypted_data.serialized_size
+
+
+TLObject.objects[TLReqDHParams.MAGIC] = TLReqDHParams
