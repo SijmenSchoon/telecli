@@ -639,3 +639,111 @@ class TLError:
         return '%s#%x(code=%d, text=%r)' % (type(self).__name__, self.MAGIC, self.code, self.text)
 
 __add_object(TLError)
+
+
+class TLInvokeAfterMsg:
+    MAGIC = 0xcb9f372d
+
+    def __init__(self, buffer=None, offset=0):
+        self.msg_id = 0
+        self.query = None
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.msg_id, = struct.unpack_from('q', buffer, offset=offset + 4)
+        self.query = deserialize(buffer, offset + 8)
+
+    def serialize(self):
+        query_b = self.query.serialize()
+        return struct.pack('Iq%ds' % len(query_b), self.MAGIC, self.msg_id)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Iq%ds' % self.query.serialized_size)
+
+    def __repr__(self):
+        return '%s#%x(msg_id=%d, ...)' % (type(self).__name__, self.MAGIC, self.msg_id)
+
+__add_object(TLInvokeAfterMsg)
+
+
+class TLInvokeWithLayer:
+    MAGIC = 0xda9b0d0d
+
+    def __init__(self, buffer=None, offset=0):
+        self.layer = 0
+        self.query = None
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.layer, = struct.unpack_from('i', buffer, offset=offset + 4)
+        self.query = self.deserialize(buffer, offset + 8)
+
+    def serialize(self):
+        query_b = self.query.serialize()
+        return struct.pack('Ii%ds' % len(query_b), self.MAGIC, self.layer, query_b)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Ii%ds' % self.query.serialized_size)
+
+    def __repr__(self):
+        return '%s#%x(layer=%d, ...)' % (type(self).__name__, self.MAGIC, self.layer)
+
+__add_object(TLInvokeWithLayer)
+
+
+class TLInitConnection:
+    MAGIC = 0x69796de9
+
+    def __init__(self, buffer=None, offset=0):
+        self.api_id = 0
+        self.device_model = MTByteArray()
+        self.system_version = MTByteArray()
+        self.app_version = MTByteArray()
+        self.lang_code = MTByteArray()
+        self.query = None
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        offset += 4
+
+        self.api_id, = struct.unpack_from('i', buffer, offset=offset)
+        offset += 4
+
+        self.device_model.deserialize(buffer, offset)
+        offset += self.device_model.serialized_size
+
+        self.system_version.deserialize(buffer, offset)
+        offset += self.system_version.serialized_size
+
+        self.app_version.deserialize(buffer, offset)
+        offset += self.app_version.serialized_size
+
+        self.lang_code.deserialize(buffer, offset)
+        offset += self.lang_code.serialized_size
+
+        self.query = deserialize(buffer, offset)
+
+    def serialize(self):
+        device_model_b = self.device_model.serialize()
+        system_version_b = self.system_version.serialize()
+        app_version_b = self.app_version.serialize()
+        lang_code_b = self.lang_code.serialize()
+        query_b = self.query.serialize()
+
+        return struct.pack('Ii%ds%ds%ds%ds%ds' % (len(device_model_b), len(system_version_b), len(app_version_b),
+                                                  len(lang_code_b), len(query_b)),
+                           self.api_id, device_model_b, system_version_b, app_version_b, lang_code_b, query_b)
