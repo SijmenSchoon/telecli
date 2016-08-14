@@ -747,3 +747,16 @@ class TLInitConnection:
         return struct.pack('Ii%ds%ds%ds%ds%ds' % (len(device_model_b), len(system_version_b), len(app_version_b),
                                                   len(lang_code_b), len(query_b)),
                            self.api_id, device_model_b, system_version_b, app_version_b, lang_code_b, query_b)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Ii%ds%ds%ds%ds%ds' % (self.device_model.serialized_size,
+                                                      self.system_version.serialized_size,
+                                                      self.app_version.serialized_size,
+                                                      self.lang_code.serialized_size,
+                                                      self.query.serialized_size))
+
+    def __repr__(self):
+        return '%s#%x(api_id=%d, device_model=%r, system_version=%r, app_version=%r, lang_code=%r, query=%r)' % \
+               (type(self).__name__, self.MAGIC, self.api_id, self.device_model, self.system_version,
+                self.app_version, self.lang_code, self.query)
