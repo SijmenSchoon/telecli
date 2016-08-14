@@ -53,7 +53,7 @@ class TLVector:
         self.values[key] = value
 
     def __repr__(self):
-        return 'TLVector#%x(values=%r)' % (self.MAGIC, self.values)
+        return '%s#%x(values=%r)' % (type(self).__name__, self.MAGIC, self.values)
 
 __add_object(TLVector)
 
@@ -80,7 +80,7 @@ class TLMsgsAck:
         return struct.calcsize('I%ds' % self.msg_ids.serialized_size)
 
     def __repr__(self):
-        return 'TLMsgsAck#%x(msg_ids=%r)' % (self.MAGIC, self.msg_ids)
+        return '%s#%x(msg_ids=%r)' % (type(self).__name__, self.MAGIC, self.msg_ids)
 
 __add_object(TLMsgsAck)
 
@@ -115,7 +115,7 @@ class TLMsgContainer:
         return struct.calcsize('II%ds' % size)
 
     def __repr__(self):
-        return 'TLMsgContainer#%x(messages=%r)' % (self.MAGIC, self.messages)
+        return '%s#%x(messages=%r)' % (type(self).__name__, self.MAGIC, self.messages)
 
 __add_object(TLMsgContainer)
 
@@ -148,7 +148,7 @@ class TLMessage:
         return struct.calcsize('Iqii%ds' % self.bytes)
 
     def __repr__(self):
-        return 'TLMessage#%x(msg_id=%d)' % (self.MAGIC, self.msg_id)
+        return '%s#%x(msg_id=%d)' % (type(self).__name__, self.MAGIC, self.msg_id)
 
 __add_object(TLMessage)
 
@@ -175,7 +175,7 @@ class TLMsgResendReq:
         return struct.calcsize('I%ds' % self.msg_ids.serialized_size)
 
     def __repr__(self):
-        return 'TLMsgResendReq#%x(msg_ids=%r)' % (self.MAGIC, self.msg_ids)
+        return '%s#%x(msg_ids=%r)' % (type(self).__name__, self.MAGIC, self.msg_ids)
 
 __add_object(TLMsgResendReq)
 
@@ -204,7 +204,8 @@ class TLRpcError:
         return struct.calcsize('Ii%ds' % self.error_message.serialized_size)
 
     def __repr__(self):
-        return 'TLRpcReqError#%x(error_code=%d, error_message=%r)' % (self.MAGIC, self.error_code, self.error_message)
+        return '%s#%x(error_code=%d, error_message=%r)' % \
+               (type(self).__name__, self.MAGIC, self.error_code, self.error_message)
 
 __add_object(TLRpcError)
 
@@ -235,8 +236,8 @@ class TLRpcReqError:
         return struct.calcsize('Iqi%ds' % self.error_message.serialized_size)
 
     def __repr__(self):
-        return 'TLRpcReqError#%x(query_id=%d, error_code=%d, error_message=%r)' % \
-               (self.MAGIC, self.query_id, self.error_code, self.error_message)
+        return '%s#%x(query_id=%d, error_code=%d, error_message=%r)' % \
+               (type(self).__name__, self.MAGIC, self.query_id, self.error_code, self.error_message)
 
 __add_object(TLRpcReqError)
 
@@ -270,7 +271,7 @@ class TLClientDHInnerData:
         return struct.calcsize('I%ds%dsq%ds' % (len(self.nonce), len(self.server_nonce), self.g_b.serialized_size))
 
     def __repr__(self):
-        return 'TLClientDHInnerData#%x(...)' % self.MAGIC
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
 
 __add_object(TLClientDHInnerData)
 
@@ -317,7 +318,7 @@ class TLServerDHInnerData:
                                                     self.dh_prime.serialized_size, self.g_a.serialized_size))
 
     def __repr__(self):
-        return 'TLServerDHInnerData#%x(...)' % self.MAGIC
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
 
 __add_object(TLServerDHInnerData)
 
@@ -344,7 +345,7 @@ class TLReqPQ:
         return struct.calcsize('I%ds' % len(self.nonce))
 
     def __repr__(self):
-        return 'TLReqPQ#%x(...)' % self.MAGIC
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
 
 __add_object(TLReqPQ)
 
@@ -396,7 +397,7 @@ class TLReqDHParams:
                                                       self.encrypted_data.serialized_size))
 
     def __repr__(self):
-        return 'TLReqDHParams#%x(...)' % self.MAGIC
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
 
 __add_object(TLReqDHParams)
 
@@ -429,7 +430,7 @@ class TLSetClientDHParams:
         return struct.calcsize('I16s16s%ds' % self.encrypted_data.serialized_size)
 
     def __repr__(self):
-        return 'TLSetClientDHParams#%x(...)' % self.MAGIC
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
 
 __add_object(TLSetClientDHParams)
 
@@ -456,7 +457,7 @@ class TLRpcDropAnswer:
         return struct.calcsize('Iq')
 
     def __repr__(self):
-        return 'TLRpcDropAnswer#%x(req_msg_id=%d)' % (self.MAGIC, self.req_msg_id)
+        return '%s#%x(req_msg_id=%d)' % (type(self).__name__, self.MAGIC, self.req_msg_id)
 
 __add_object(TLRpcDropAnswer)
 
@@ -483,7 +484,7 @@ class TLGetFutureSalts:
         return struct.calcsize('Ii')
 
     def __repr__(self):
-        return 'TLGetFutureSalts#%x(num=%d)' % (self.MAGIC, self.num)
+        return '%s#%x(num=%d)' % (type(self).__name__, self.MAGIC, self.num)
 
 __add_object(TLGetFutureSalts)
 
@@ -510,7 +511,7 @@ class TLPing:
         return struct.calcsize('Iq')
 
     def __repr__(self):
-        return 'TLPing#%x(ping_id=%d)' % (self.MAGIC, self.ping_id)
+        return '%s#%x(ping_id=%d)' % (type(self).__name__, self.MAGIC, self.ping_id)
 
 __add_object(TLPing)
 
@@ -538,8 +539,8 @@ class TLPingDelayDisconnect:
         return struct.calcsize('Iqi')
 
     def __repr__(self):
-        return 'TLPingDelayDisconnect#%x(ping_id=%d, disconnect_delay=%d)' % \
-               (self.MAGIC, self.ping_id, self.disconnect_delay)
+        return '%s#%x(ping_id=%d, disconnect_delay=%d)' % (type(self).__name__, self.MAGIC, self.ping_id,
+                                                           self.disconnect_delay)
 
 __add_object(TLPingDelayDisconnect)
 
@@ -566,7 +567,7 @@ class TLDestroySession:
         return struct.calcsize('Iq')
 
     def __repr__(self):
-        return 'TLDestroySession#%x(session_id=%d)' % (self.MAGIC, self.session_id)
+        return '%s#%x(session_id=%d)' % (type(self).__name__, self.MAGIC, self.session_id)
 
 __add_object(TLDestroySession)
 
@@ -594,7 +595,7 @@ class TLGzipPacked:
         return struct.calcsize('I%ds' % self.packed_data.serialized_size)
 
     def __repr__(self):
-        return 'TLGzipPacked#%x(...)' % self.MAGIC
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
 
 __add_object(TLGzipPacked)
 
@@ -624,6 +625,6 @@ class TLError:
         return struct.calcsize('Ii%ds' % self.text.serialized_size)
 
     def __repr__(self):
-        return 'TLError#%x(code=%d, text=%r)' % (self.MAGIC, self.code, self.text)
+        return '%s#%x(code=%d, text=%r)' % (type(self).__name__, self.MAGIC, self.code, self.text)
 
 __add_object(TLError)
