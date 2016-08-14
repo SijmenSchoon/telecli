@@ -17,6 +17,17 @@ def deserialize(buffer, offset=0):
         raise NotImplementedError(hex(magic))
 
 
+def print_table():
+    keys = sorted(__objects.keys())
+    print('+----------+--------------------------------+')
+    print('| Magic    | Name                           |')
+    print('+----------+--------------------------------+')
+    for key in keys:
+        value = __objects[key]
+        print('| {:x} | {:<30} |'.format(key, value.__name__))
+    print('+----------+--------------------------------+')
+
+
 class IncorrectMagicNumberError(Exception):
     pass
 
