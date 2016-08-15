@@ -1,3 +1,6 @@
+import struct, math
+
+
 class MTByteArray:
     def __init__(self, val=b''):
         self.s = val

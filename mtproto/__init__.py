@@ -1,7 +1,5 @@
 import time
 import os
-import struct
-import socket
 
 
 def generate_nonce():

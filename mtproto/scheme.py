@@ -1,5 +1,6 @@
 import struct
 from .mtbytearray import MTByteArray
+from . import generate_nonce
 
 __objects = {}
 
@@ -24,7 +25,7 @@ def print_table():
     print('+----------+--------------------------------+')
     for key in keys:
         value = __objects[key]
-        print('| {:x} | {:<30} |'.format(key, value.__name__))
+        print('| {:08x} | {:<30s} |'.format(key, value.__name__))
     print('+----------+--------------------------------+')
 
 
@@ -67,6 +68,86 @@ class TLVector:
         return '%s#%x(values=%r)' % (type(self).__name__, self.MAGIC, self.values)
 
 __add_object(TLVector)
+
+
+class TLResPQ:
+    MAGIC = 0x05162463
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.pq = MTByteArray()
+        self.server_public_key_fingerprints = TLVector()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        offset += 4
+
+        self.nonce, self.server_nonce = struct.unpack_from('16s16s', buffer, offset=offset)
+        offset += 32
+
+        self.pq.deserialize(buffer, offset)
+        offset += self.pq.serialized_size
+
+        self.server_public_key_fingerprints.deserialize(buffer, offset)
+
+    def serialize(self):
+        pq_b = self.pq.serialize()
+        spkf_b = self.server_public_key_fingerprints.serialize()
+        return struct.pack('I16s16s%ds%ds' % (len(pq_b), len(spkf_b)),
+                           self.MAGIC, self.nonce, self.server_nonce, pq_b, spkf_b)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('I16s16s%ds%ds' % (self.pq.serialized_size,
+                                                  self.server_public_key_fingerprints.serialized_size))
+
+    def __repr__(self):
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
+
+__add_object(TLResPQ)
+
+
+class TLPQInnerData:
+    MAGIC = 0x83c95aec
+
+    def __init__(self, buffer=None, offset=0, pq=MTByteArray(), p=MTByteArray(), q=MTByteArray(),
+                 nonce=bytes(), server_nonce=bytes(), new_nonce=bytes()):
+        self.pq = pq
+        self.p = p
+        self.q = q
+        self.nonce = nonce
+        self.server_nonce = server_nonce
+        self.new_nonce = new_nonce
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        raise NotImplementedError
+
+    def serialize(self):
+        pq_b = self.pq.serialize()
+        p_b = self.p.serialize()
+        q_b = self.q.serialize()
+        return struct.pack('I%ds%ds%ds16s16s32s' % (len(pq_b), len(p_b), len(q_b)),
+                           self.MAGIC, pq_b, p_b, q_b, self.nonce, self.server_nonce, self.new_nonce)
+
+    @property
+    def serialized_size(self):
+        raise struct.calcsize('I%ds%ds%ds16s16s32s' % (self.pq.serialized_size, self.p.serialized_size,
+                                                       self.q.serialized_size))
+
+    def __repr__(self):
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
+
+__add_object(TLPQInnerData)
 
 
 class TLMsgsAck:
@@ -337,7 +418,7 @@ __add_object(TLServerDHInnerData)
 class TLReqPQ:
     MAGIC = 0x60469778
 
-    def __init__(self, buffer=None, offset=0, nonce=bytes()):
+    def __init__(self, buffer=None, offset=0, nonce=generate_nonce()):
         self.nonce = nonce
 
         if buffer is not None:
@@ -364,13 +445,14 @@ __add_object(TLReqPQ)
 class TLReqDHParams:
     MAGIC = 0xd712e4be
 
-    def __init__(self, buffer=None, offset=0):
-        self.nonce = bytes()
-        self.server_nonce = bytes()
-        self.p = MTByteArray()
-        self.q = MTByteArray()
-        self.public_key_fingerprint = 0
-        self.encrypted_data = MTByteArray()
+    def __init__(self, buffer=None, offset=0, nonce=bytes(), server_nonce=bytes(), p=MTByteArray(), q=MTByteArray(),
+                 public_key_fingerprint=0, encrypted_data=MTByteArray()):
+        self.nonce = nonce
+        self.server_nonce = server_nonce
+        self.p = p
+        self.q = q
+        self.public_key_fingerprint = public_key_fingerprint
+        self.encrypted_data = encrypted_data
 
         if buffer is not None:
             self.deserialize(buffer, offset)
@@ -399,12 +481,12 @@ class TLReqDHParams:
         q_b = self.q.serialize()
         encrypted_data_b = self.encrypted_data.serialize()
 
-        return struct.pack('I16s16s%ds%dsq%ds' % (len(p_b), len(q_b), len(encrypted_data_b)), self.MAGIC, self.nonce,
+        return struct.pack('I16s16s%ds%dsQ%ds' % (len(p_b), len(q_b), len(encrypted_data_b)), self.MAGIC, self.nonce,
                            self.server_nonce, p_b, q_b, self.public_key_fingerprint, encrypted_data_b)
 
     @property
     def serialized_size(self):
-        return struct.calcsize('I16s16s%ds%dsq%ds' % (self.p.serialized_size, self.q.serialized_size,
+        return struct.calcsize('I16s16s%ds%dsQ%ds' % (self.p.serialized_size, self.q.serialized_size,
                                                       self.encrypted_data.serialized_size))
 
     def __repr__(self):
@@ -760,3 +842,39 @@ class TLInitConnection:
         return '%s#%x(api_id=%d, device_model=%r, system_version=%r, app_version=%r, lang_code=%r, query=%r)' % \
                (type(self).__name__, self.MAGIC, self.api_id, self.device_model, self.system_version,
                 self.app_version, self.lang_code, self.query)
+
+__add_object(TLInitConnection)
+
+
+class TLDcOption:
+    MAGIC = 0x05d8c6cc
+
+    def __init__(self, buffer=None, offset=0):
+        self.flags = 0
+        self.id = 0
+        self.ip_address = MTByteArray()
+        self.port = 0
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise IncorrectMagicNumberError
+        self.flags, self.id = struct.unpack_from('ii', buffer, offset=offset + 4)
+        self.ip_address.deserialize(buffer, offset + 12)
+        self.port, = struct.unpack_from('i', buffer, offset + 12 + self.ip_address.serialized_size)
+
+    def serialize(self):
+        ip_address_b = self.ip_address.serialize()
+        return struct.pack('Iii%dsi' % len(ip_address_b), self.flags, self.id, ip_address_b, self.port)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('Iii%dsi' % self.ip_address.serialized_size)
+
+    def __repr__(self):
+        return '%s#%x(flags=0x%x, id=%d, ip_address=%r, port=%d)' % (type(self).__name__, self.MAGIC, self.flags,
+                                                                     self.id, self.ip_address, self.port)
+
+__add_object(TLDcOption)
