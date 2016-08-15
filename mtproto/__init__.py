@@ -1,9 +1,4 @@
 import time
-import os
-
-
-def generate_nonce():
-    return os.urandom(16)
 
 
 def generate_message_id():

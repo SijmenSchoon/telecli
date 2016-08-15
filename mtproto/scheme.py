@@ -1,6 +1,6 @@
 import struct
 
-from . import generate_nonce
+from . import exceptions
 from .mtbytearray import MTByteArray
 
 __objects = {}
@@ -40,7 +40,7 @@ class TLVector:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         count, = struct.unpack_from('I', buffer, offset=offset + 4)
         self.values = list(struct.unpack_from('%dQ' % count, buffer, offset=offset + 8))
 
@@ -81,7 +81,7 @@ class TLResPQ:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         offset += 4
 
         self.nonce, self.server_nonce = struct.unpack_from('16s16s', buffer, offset=offset)
@@ -126,7 +126,7 @@ class TLPQInnerData:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         raise NotImplementedError
 
     def serialize(self):
@@ -157,7 +157,7 @@ class TLMsgsAck:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.msg_ids = TLVector(buffer, offset=offset + 4)
 
     def serialize(self):
@@ -184,7 +184,7 @@ class TLMsgContainer:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         count, = struct.unpack_from('I', buffer, offset=offset + 4)
         offset += 8
         for _ in range(count):
@@ -222,7 +222,7 @@ class TLMessage:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
 
         self.msg_id, self.segno, self.bytes = struct.unpack_from('qii', buffer, offset=offset + 4)
 
@@ -252,7 +252,7 @@ class TLMsgResendReq:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.msg_ids = TLVector(buffer, offset=offset + 4)
 
     def serialize(self):
@@ -280,7 +280,7 @@ class TLRpcError:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.error_code, = struct.unpack_from('i', buffer, offset=offset + 4)
         self.error_message.deserialize(buffer, offset=offset + 8)
 
@@ -312,7 +312,7 @@ class TLRpcReqError:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.query_id, self.error_code = struct.unpack_from('qi', buffer, offset=offset + 4)
         self.error_message.deserialize(buffer, offset)
 
@@ -347,7 +347,7 @@ class TLClientDHInnerData:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         raise NotImplementedError
 
     def serialize(self):
@@ -381,7 +381,7 @@ class TLServerDHInnerData:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         offset += 4
 
         self.nonce, self.server_nonce, self.g = struct.unpack_from('16s16sI', buffer, offset=offset)
@@ -415,7 +415,7 @@ __add_object(TLServerDHInnerData)
 class TLReqPQ:
     MAGIC = 0x60469778
 
-    def __init__(self, buffer=None, offset=0, nonce=generate_nonce()):
+    def __init__(self, buffer=None, offset=0, nonce=bytes()):
         self.nonce = nonce
 
         if buffer is not None:
@@ -423,7 +423,7 @@ class TLReqPQ:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.nonce, = struct.unpack_from('16s', buffer, offset=offset + 4)
 
     def serialize(self):
@@ -456,7 +456,7 @@ class TLReqDHParams:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         offset += 4
 
         self.nonce, self.server_nonce = struct.unpack_from('16s16s', buffer, offset=offset)
@@ -508,7 +508,7 @@ class TLSetClientDHParams:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
 
         self.nonce, self.server_nonce = struct.unpack_from('16s16s', buffer, offset=offset + 4)
         self.encrypted_data.deserialize(buffer, offset=offset + 36)
@@ -539,7 +539,7 @@ class TLRpcDropAnswer:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.req_msg_id, = struct.unpack_from('q', buffer, offset=offset + 4)
 
     def serialize(self):
@@ -566,7 +566,7 @@ class TLGetFutureSalts:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.num, = struct.unpack_from('i', buffer, offset=offset + 4)
 
     def serialize(self):
@@ -593,7 +593,7 @@ class TLPing:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.ping_id = struct.unpack_from('q', buffer, offset=offset + 4)
 
     def serialize(self):
@@ -621,7 +621,7 @@ class TLPingDelayDisconnect:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.ping_id, self.disconnect_delay = struct.unpack_from('qi', buffer, offset=offset + 4)
 
     def serialize(self):
@@ -649,7 +649,7 @@ class TLDestroySession:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.session_id, = struct.unpack_from('q', buffer, offset=offset + 4)
 
     def serialize(self):
@@ -676,7 +676,7 @@ class TLGzipPacked:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.packed_data.deserialize(buffer, offset + 4)
 
     def serialize(self):
@@ -705,7 +705,7 @@ class TLError:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.code, = struct.unpack_from('i', buffer, offset=offset + 4)
         self.text.deserialize(buffer, offset=offset + 8)
 
@@ -735,7 +735,7 @@ class TLInvokeAfterMsg:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.msg_id, = struct.unpack_from('q', buffer, offset=offset + 4)
         self.query = deserialize(buffer, offset + 8)
 
@@ -765,7 +765,7 @@ class TLInvokeWithLayer:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.layer, = struct.unpack_from('i', buffer, offset=offset + 4)
         self.query = self.deserialize(buffer, offset + 8)
 
@@ -799,7 +799,7 @@ class TLInitConnection:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         offset += 4
 
         self.api_id, = struct.unpack_from('i', buffer, offset=offset)
@@ -860,7 +860,7 @@ class TLDcOption:
 
     def deserialize(self, buffer, offset=0):
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
-            raise IncorrectMagicNumberError
+            raise exceptions.IncorrectMagicNumberError
         self.flags, self.id = struct.unpack_from('ii', buffer, offset=offset + 4)
         self.ip_address.deserialize(buffer, offset + 12)
         self.port, = struct.unpack_from('i', buffer, offset + 12 + self.ip_address.serialized_size)
