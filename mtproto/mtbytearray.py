@@ -2,7 +2,7 @@ import struct, math
 
 
 class MTByteArray:
-    def __init__(self, val=b''):
+    def __init__(self, val=bytes()):
         self.s = val
 
     def deserialize(self, buffer, offset=0):
@@ -21,6 +21,13 @@ class MTByteArray:
 
         padding = -(len(self.s) + len(size_buf)) % 4
         return size_buf + self.s + bytes(padding)
+
+    @staticmethod
+    def from_int(i, size, byteorder):
+        return MTByteArray(i.to_bytes(size, byteorder))
+
+    def to_int(self, byteorder):
+        return int.from_bytes(self.s, byteorder)
 
     @property
     def serialized_size(self):

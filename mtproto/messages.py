@@ -10,9 +10,9 @@ class UnencryptedMessage:
 
     def deserialize(self, buffer, offset=0):
         print(buffer.hex())
-        self.auth_key_id, self.message_id, message_len = struct.unpack_from('qqi', buffer, offset=offset)
+        self.auth_key_id, self.message_id, message_len = struct.unpack_from('qqI', buffer, offset=offset)
         self.message_data, = struct.unpack_from('%ds' % message_len, buffer, offset=offset + 20)
 
     def serialize(self):
-        return struct.pack('qqi%ds' % len(self.message_data),
+        return struct.pack('qqI%ds' % len(self.message_data),
                            self.auth_key_id, self.message_id, len(self.message_data), self.message_data)

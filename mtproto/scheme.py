@@ -1,6 +1,7 @@
 import struct
-from .mtbytearray import MTByteArray
+
 from . import generate_nonce
+from .mtbytearray import MTByteArray
 
 __objects = {}
 
@@ -29,10 +30,6 @@ def print_table():
     print('+----------+--------------------------------+')
 
 
-class IncorrectMagicNumberError(Exception):
-    pass
-
-
 class TLVector:
     MAGIC = 0x1cb5c415
 
@@ -45,18 +42,18 @@ class TLVector:
         if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
             raise IncorrectMagicNumberError
         count, = struct.unpack_from('I', buffer, offset=offset + 4)
-        self.values = list(struct.unpack_from('%dq' % count, buffer, offset=offset + 8))
+        self.values = list(struct.unpack_from('%dQ' % count, buffer, offset=offset + 8))
 
     def serialize(self):
         count = len(self.values)
-        return struct.pack('II%dq' % count, self.MAGIC, count, *self.values)
+        return struct.pack('II%dQ' % count, self.MAGIC, count, *self.values)
 
     def append(self, *l):
         self.values.append(*l)
 
     @property
     def serialized_size(self):
-        return struct.calcsize('II%dq' % len(self.values))
+        return struct.calcsize('II%dQ' % len(self.values))
 
     def __getitem__(self, key):
         return self.values[key]
@@ -481,8 +478,11 @@ class TLReqDHParams:
         q_b = self.q.serialize()
         encrypted_data_b = self.encrypted_data.serialize()
 
-        return struct.pack('I16s16s%ds%dsQ%ds' % (len(p_b), len(q_b), len(encrypted_data_b)), self.MAGIC, self.nonce,
-                           self.server_nonce, p_b, q_b, self.public_key_fingerprint, encrypted_data_b)
+        return (self.MAGIC.to_bytes(4, 'little') + self.nonce + self.server_nonce + p_b + q_b +
+                self.public_key_fingerprint.to_bytes(8, 'little') + encrypted_data_b)
+
+        # return struct.pack('I16s16s%ds%dsq%ds' % (len(p_b), len(q_b), len(encrypted_data_b)), self.MAGIC, self.nonce,
+        #                    self.server_nonce, p_b, q_b, self.public_key_fingerprint, encrypted_data_b)
 
     @property
     def serialized_size(self):

@@ -1,22 +1,14 @@
-import asyncio, hashlib, os, rsa, struct
-from mtproto import messages, scheme, generate_nonce
-from mtproto.mtbytearray import MTByteArray
-from sympy.ntheory import factorint
-from Crypto.PublicKey import RSA
-from Crypto.Hash import SHA
+import asyncio
+import hashlib
+import os
+import struct
 from binascii import crc32
 
+from Crypto.PublicKey import RSA
+from sympy.ntheory import factorint
 
-class NonceMismatchError(BaseException):
-    pass
-
-
-class SequenceNumberMismatchError(BaseException):
-    pass
-
-
-class CRCMismatchError(BaseException):
-    pass
+from mtproto import exceptions, messages, scheme
+from mtproto.mtbytearray import MTByteArray
 
 
 class Datacenter:
@@ -27,24 +19,13 @@ class Datacenter:
         self.reader = None
         self.writer = None
 
-        self.public_key = RSA.importKey('''
------BEGIN RSA PUBLIC KEY-----
-MIIBCgKCAQEAwVACPi9w23mF3tBkdZz+zwrzKOaaQdr01vAbU4E1pvkfj4sqDsm6
-lyDONS789sVoD/xCS9Y0hkkC3gtL1tSfTlgCMOOul9lcixlEKzwKENj1Yz/s7daS
-an9tqw3bfUV/nqgbhGX81v/+7RFAEd+RwFnK7a+XYl9sluzHRyVVaTTveB2GazTw
-Efzk2DWgkBluml8OREmvfraX3bkHZJTKX4EQSjBbbdJ2ZXIsRrYOXfaA+xayEGB+
-8hdlLmAjbCVfaigxX0CDqWeR1yFL9kwd9P0NsZRPsmoqVwMbMu7mStFai6aIhc3n
-Slv8kg9qv1m6XHVQY3PnEw+QQtqSIXklHwIDAQAB
------END RSA PUBLIC KEY-----
-            '''.strip())
-        self.public_key_fingerprint = 0xc3b42b026ce86b21
+        with open('rsa.pub', 'r') as f:
+            self.public_key = RSA.importKey(f.read())
 
-        self.sequence_number = -1
-
-        self.__is_first_message = True
+        self.sequence_number_out = 0
+        self.sequence_number_in = 0
 
     async def connect(self):
-        self.__is_first_message = True
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
 
     def write_message(self, message):
@@ -52,8 +33,8 @@ Slv8kg9qv1m6XHVQY3PnEw+QQtqSIXklHwIDAQAB
 
         # Calculate the metadata
         message_len = (len(message_b) + 12).to_bytes(4, 'little')
-        self.sequence_number += 1
-        sequence_number = self.sequence_number.to_bytes(4, 'little')
+        sequence_number = self.sequence_number_out.to_bytes(4, 'little')
+        self.sequence_number_out += 1
 
         crc = crc32(message_len + sequence_number + message_b).to_bytes(4, 'little')
 
@@ -69,13 +50,15 @@ Slv8kg9qv1m6XHVQY3PnEw+QQtqSIXklHwIDAQAB
         sequence_number, payload, crc = struct.unpack('I%dsI' % (message_len - 12), buf)
 
         # Check the sequence number
-        if sequence_number != self.sequence_number:
-            raise SequenceNumberMismatchError('Expected %d, got %d' % (self.sequence_number, sequence_number))
+        if sequence_number != self.sequence_number_in:
+            raise exceptions.SequenceNumberMismatchError('Expected %d, got %d' %
+                                                         (self.sequence_number_in, sequence_number))
+        self.sequence_number_in += 1
 
         # Check the CRC
         own_crc = crc32(struct.pack('II%ds' % len(payload), message_len, sequence_number, payload))
         if crc != own_crc:
-            raise CRCMismatchError('Expected {:#x}, got {:#x}'.format(own_crc, crc))
+            raise exceptions.CRCMismatchError('Expected {:#x}, got {:#x}'.format(own_crc, crc))
 
         message = messages.UnencryptedMessage()
         message.deserialize(payload)
@@ -84,7 +67,7 @@ Slv8kg9qv1m6XHVQY3PnEw+QQtqSIXklHwIDAQAB
 
     async def handshake(self):
         # Request a pq variable from the server
-        nonce = generate_nonce()
+        nonce = os.urandom(16)
         obj = scheme.TLReqPQ(nonce=nonce)
         msg = messages.UnencryptedMessage(message_data=obj.serialize())
         self.write_message(msg)
@@ -93,29 +76,34 @@ Slv8kg9qv1m6XHVQY3PnEw+QQtqSIXklHwIDAQAB
         msg = await self.read_message()
         obj = scheme.deserialize(msg.message_data, 0)
         server_nonce = obj.server_nonce
+        fingerprint = obj.server_public_key_fingerprints[0]
         if obj.nonce != nonce:
-            raise NonceMismatchError
+            raise exceptions.NonceMismatchError
 
         # Factorize the pq variable (proof of work)
         pq = obj.pq
-        pq_int = int.from_bytes(pq.s, 'big')
-        factors = sorted(factorint(pq_int).keys())
-        if len(factors) != 2:
-            raise Exception('PQ {:#x} has fewer or more than two factors: {}'.format(pq_int, factors))
-        p, q = [MTByteArray(x.to_bytes(4, 'big')) for x in factors]
-        print('pq: {}; p: {}; q: {}'.format(pq.s.hex(), p.s.hex(), q.s.hex()))
+        pq_int = pq.to_int('big')
+        [p, q] = sorted(factorint(pq_int).keys())
+        assert p * q == pq_int and p < q
+
+        # Serialize p and q
+        p_ba = MTByteArray.from_int(p, 4, 'big')
+        q_ba = MTByteArray.from_int(q, 4, 'big')
 
         # Server authentication (presenting proof of work)
-        new_nonce = generate_nonce() + generate_nonce()
-        inner_obj = scheme.TLPQInnerData(pq=pq, p=p, q=q, nonce=nonce, server_nonce=server_nonce, new_nonce=new_nonce)
+        new_nonce = os.urandom(32)
+        inner_obj = scheme.TLPQInnerData(pq=pq, p=p_ba, q=q_ba, nonce=nonce,
+                                         server_nonce=server_nonce, new_nonce=new_nonce)
         inner_data = inner_obj.serialize()
-        data_with_hash = bytearray(SHA.new(inner_data).digest() + inner_data)
-        data_with_hash.extend(os.urandom(255 - len(data_with_hash)))
-        encrypted_data = self.public_key.encrypt(bytes(data_with_hash), 0)[0]
 
-        obj = scheme.TLReqDHParams(nonce=nonce, server_nonce=server_nonce, p=p, q=q,
-                                   public_key_fingerprint=self.public_key_fingerprint,
-                                   encrypted_data=MTByteArray(encrypted_data))
+        sha_digest = hashlib.sha1(inner_data).digest()
+        random_bytes = os.urandom(255 - len(inner_data) - len(sha_digest))
+        data_with_hash = sha_digest + inner_data + random_bytes
+        encrypted_data = self.public_key.encrypt(data_with_hash, 0)[0]
+
+        print('Requesting DH parameters')
+        obj = scheme.TLReqDHParams(nonce=nonce, server_nonce=server_nonce, p=p_ba, q=q_ba,
+                                   public_key_fingerprint=fingerprint, encrypted_data=MTByteArray(encrypted_data))
         msg = messages.UnencryptedMessage(message_data=obj.serialize())
         self.write_message(msg)
 
