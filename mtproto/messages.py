@@ -9,7 +9,8 @@ class UnencryptedMessage:
         self.message_data = message_data
 
     def deserialize(self, buffer, offset=0):
-        print(buffer.hex())
+        if len(buffer) < 20:
+            raise ValueError('buffer too short: {}'.format(buffer.hex()))
         self.auth_key_id, self.message_id, message_len = struct.unpack_from('qqI', buffer, offset=offset)
         self.message_data, = struct.unpack_from('%ds' % message_len, buffer, offset=offset + 20)
 

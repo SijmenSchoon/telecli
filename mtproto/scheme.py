@@ -67,6 +67,65 @@ class TLVector:
 __add_object(TLVector)
 
 
+class TLServerDHParamsFail:
+    MAGIC = 0x79cb045d
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.new_nonce_hash = bytes()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise exceptions.IncorrectMagicNumberError
+        self.nonce, self.server_nonce, self.new_nonce_hash = struct.unpack_from('16s16s16s', buffer, offset=offset + 4)
+
+    def serialize(self):
+        raise NotImplementedError
+
+    @property
+    def serialized_size(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
+
+__add_object(TLServerDHParamsFail)
+
+
+class TLServerDHParamsOK:
+    MAGIC = 0xd0e8075c
+
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.encrypted_answer = MTByteArray()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise exceptions.IncorrectMagicNumberError
+        self.nonce, self.server_nonce = struct.unpack_from('16s16s', buffer, offset=offset + 4)
+        self.encrypted_answer.deserialize(buffer, offset + 36)
+
+    def serialize(self):
+        raise NotImplementedError
+
+    @property
+    def serialized_size(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
+
+__add_object(TLServerDHParamsOK)
+
+
 class TLResPQ:
     MAGIC = 0x05162463
 
@@ -242,6 +301,52 @@ class TLMessage:
 __add_object(TLMessage)
 
 
+class DHGen:
+    def __init__(self, buffer=None, offset=0):
+        self.nonce = bytes()
+        self.server_nonce = bytes()
+        self.new_nonce_hash = bytes()
+
+        if buffer is not None:
+            self.deserialize(buffer, offset)
+
+    def deserialize(self, buffer, offset=0):
+        if (self.MAGIC,) != struct.unpack_from('I', buffer, offset=offset):
+            raise exceptions.IncorrectMagicNumberError
+        self.nonce, self.server_nonce, self.new_nonce_hash = struct.unpack_from('16s16s16s', buffer, offset=4)
+
+    def serialize(self):
+        return struct.pack('I16s16s16s', self.MAGIC, self.nonce, self.server_nonce, self.new_nonce_hash)
+
+    @property
+    def serialized_size(self):
+        return struct.calcsize('I16s16s16s')
+
+    def __repr__(self):
+        return '%s#%x(...)' % (type(self).__name__, self.MAGIC)
+
+
+class TLDHGenRetry(DHGen):
+    MAGIC = 0x46dc1fb9
+    result = 'retry'
+
+__add_object(TLDHGenRetry)
+
+
+class TLDHGenFail(DHGen):
+    MAGIC = 0xa69dae02
+    result = 'fail'
+
+__add_object(TLDHGenFail)
+
+
+class TLDHGenOk(DHGen):
+    MAGIC = 0x3bcbf734
+    result = 'ok'
+
+__add_object(TLDHGenOk)
+
+
 class TLMsgResendReq:
     MAGIC = 0x7d861a08
 
@@ -334,13 +439,11 @@ __add_object(TLRpcReqError)
 class TLClientDHInnerData:
     MAGIC = 0x6643b654
 
-    def __init__(self, buffer=None, offset=0):
-        self.nonce = bytes()
-        self.server_nonce = bytes()
-        self.retry_id = 0
-
-        # TODO Figure out what this is and rename it to something more appropriate
-        self.g_b = MTByteArray()
+    def __init__(self, buffer=None, offset=0, nonce=bytes(), server_nonce=bytes(), retry_id=0, g_b=MTByteArray()):
+        self.nonce = nonce
+        self.server_nonce = server_nonce
+        self.retry_id = retry_id
+        self.g_b = g_b
 
         if buffer is not None:
             self.deserialize(buffer, offset)
@@ -352,8 +455,8 @@ class TLClientDHInnerData:
 
     def serialize(self):
         gb_b = self.g_b.serialize()
-        return struct.pack('I%ds%dsq%ds' % (len(self.nonce), len(self.server_nonce), len(gb_b)),
-                           self.MAGIC, self.nonce, self.server_nonce, self.retry_id, gb_b)
+        return (self.MAGIC.to_bytes(4, 'little') + self.nonce + self.server_nonce +
+                self.retry_id.to_bytes(8, 'little') + gb_b)
 
     @property
     def serialized_size(self):
@@ -393,7 +496,7 @@ class TLServerDHInnerData:
         self.g_a.deserialize(buffer, offset=offset)
         offset += self.g_a.serialized_size
 
-        self.server_time = struct.unpack_from('i', buffer, offset=offset)
+        self.server_time, = struct.unpack_from('i', buffer, offset=offset)
 
     def serialize(self):
         dh_prime_b = self.dh_prime.serialize()
@@ -498,10 +601,10 @@ __add_object(TLReqDHParams)
 class TLSetClientDHParams:
     MAGIC = 0xf5045f1f
 
-    def __init__(self, buffer=None, offset=0):
-        self.nonce = bytes()
-        self.server_nonce = bytes()
-        self.encrypted_data = MTByteArray()
+    def __init__(self, buffer=None, offset=0, nonce=bytes(), server_nonce=bytes(), encrypted_data=MTByteArray()):
+        self.nonce = nonce
+        self.server_nonce = server_nonce
+        self.encrypted_data = encrypted_data
 
         if buffer is not None:
             self.deserialize(buffer, offset)
@@ -515,8 +618,9 @@ class TLSetClientDHParams:
 
     def serialize(self):
         encrypted_data_b = self.encrypted_data.serialize()
-        return struct.pack('I16s16s%ds' % len(encrypted_data_b),
-                           self.MAGIC, self.nonce, self.server_nonce, encrypted_data_b)
+        return self.MAGIC.to_bytes(4, 'little') + self.nonce + self.server_nonce + encrypted_data_b
+        # return struct.pack('I16s16s%ds' % len(encrypted_data_b),
+        #                    self.MAGIC, self.nonce, self.server_nonce, encrypted_data_b)
 
     @property
     def serialized_size(self):

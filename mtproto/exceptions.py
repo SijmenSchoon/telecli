@@ -10,5 +10,17 @@ class SequenceNumberMismatchError(BaseException):
     pass
 
 
-class CRCMismatchError(BaseException):
+class HashMismatchError(BaseException):
+    pass
+
+
+class NotPrimeError(BaseException):
+    pass
+
+
+class HandshakeError(BaseException):
+    pass
+
+
+class InvalidGeneratorConstantError(BaseException):
     pass

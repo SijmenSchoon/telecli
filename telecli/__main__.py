@@ -1,11 +1,18 @@
-import curses, json, os, appdirs, sys, asyncio
+import asyncio
+import curses
+import os
+import sys
+
+import appdirs
+from ruamel import yaml
+
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import mtproto.datacenter
 
 
 class Config:
     CONFIG_DIR = appdirs.user_config_dir('telecli')
-    CONFIG_FILE = 'config.json'
+    CONFIG_FILE = 'config.yml'
     CONFIG_PATH = os.path.join(CONFIG_DIR, CONFIG_FILE)
 
     def __init__(self):
@@ -17,12 +24,9 @@ class Config:
         # Read the config file
         try:
             with open(self.CONFIG_PATH, 'r') as f:
-                self.config = json.load(f)
+                self.config = yaml.load(f)
         except FileNotFoundError:
             pass
-
-        if 'auth_key_id' not in self.config:
-            self.config['auth_key_id'] = None
 
     def write(self):
         # Make sure the directory exists
@@ -30,20 +34,28 @@ class Config:
 
         # Write the config file
         with open(self.CONFIG_PATH, 'w') as f:
-            json.dump(self.config, f, indent=2)
+            yaml.dump(self.config, f)
 
     def __str__(self):
-        return json.dumps(self.config, indent=2)
+        return yaml.dump(self.config)
 
     def __getitem__(self, item):
         return self.config[item]
 
+    def __setitem__(self, key, value):
+        self.config[key] = value
+
+    def __contains__(self, item):
+        return item in self.config
+
 
 strings = {
-    'busy_indicator': ('|', '/', '-', '\\'),
-
-    'performing_handshake': 'Performing handshake...',
-
+    'connecting': 'Connecting...',
+    'performing_handshake': (
+        'Performing handshake...',
+        '(this may take a while)'
+    ),
+    'auth_key': 'Authentication key ID: {:#x}',
     'welcome_message': (
         'Welcome to TeleCLI!',
         'Please enter your phone number to begin',
@@ -54,43 +66,49 @@ strings = {
 }
 
 
-def add_center(stdscr, y, half_x, str):
-    stdscr.addstr(y, half_x - len(str) // 2, str)
-
-
 async def main(stdscr):
+    max_y, max_x = stdscr.getmaxyx()
+    half_y, half_x = (max_y // 2, max_x // 2)
+
     curses.noecho()
+
     stdscr.clear()
+    stdscr.addstr(half_y, 0, strings['connecting'].center(max_x))
+    stdscr.refresh()
+    await dc.connect()
 
-    if config['auth_key_id'] is None:
-        max_y, max_x = stdscr.getmaxyx()
-        half_y, half_x = (max_y // 2, max_x // 2)
-
-        stdscr.addstr(half_y, 0, strings['performing_handshake'].center(max_x))
-        await dc.connect()
-        await dc.handshake()
-
-        stdscr.addstr(half_y - 3, 0, strings['welcome_message'][0].center(max_x))
-        stdscr.addstr(half_y - 2, 0, strings['welcome_message'][1].center(max_x))
-        stdscr.addstr(half_y - 1, 0, strings['welcome_message'][2].center(max_x))
-        stdscr.addstr(half_y - 0, 0, strings['welcome_message'][3].center(max_x))
-
-        stdscr.addstr(half_y + 2, half_x - 10, strings['welcome_message'][4])
+    if dc.auth_key_id == 0:
+        stdscr.clear()
+        stdscr.addstr(half_y - 1, 0, strings['performing_handshake'][0].center(max_x))
+        stdscr.addstr(half_y, 0, strings['performing_handshake'][1].center(max_x))
         stdscr.refresh()
+        await dc.handshake()
+        config['datacenter'] = dc.config
+        config.write()
 
-        phone_num = ''
-        while True:
-            c = stdscr.getch()
-            if c == curses.KEY_BACKSPACE or c == 127:
-                phone_num = phone_num[:-1]
-                stdscr.move(half_y + 2, half_x - 7 + len(phone_num))
-                stdscr.delch()
-            elif c == curses.KEY_ENTER:
-                # register phone number
-                pass
-            elif ord('0') <= c <= ord('9') and len(phone_num) <= 15:
-                phone_num += chr(c)
-                stdscr.echochar(c)
+    stdscr.clear()
+    stdscr.addstr(half_y - 5, 0, strings['auth_key'].format(dc.auth_key_id).center(max_x))
+    stdscr.addstr(half_y - 3, 0, strings['welcome_message'][0].center(max_x))
+    stdscr.addstr(half_y - 2, 0, strings['welcome_message'][1].center(max_x))
+    stdscr.addstr(half_y - 1, 0, strings['welcome_message'][2].center(max_x))
+    stdscr.addstr(half_y - 0, 0, strings['welcome_message'][3].center(max_x))
+
+    stdscr.addstr(half_y + 2, half_x - 10, strings['welcome_message'][4])
+    stdscr.refresh()
+
+    phone_num = ''
+    while True:
+        c = stdscr.getch()
+        if c == curses.KEY_BACKSPACE or c == 127:
+            phone_num = phone_num[:-1]
+            stdscr.move(half_y + 2, half_x - 7 + len(phone_num))
+            stdscr.delch()
+        elif c == curses.KEY_ENTER:
+            # register phone number
+            pass
+        elif ord('0') <= c <= ord('9') and len(phone_num) <= 15:
+            phone_num += chr(c)
+            stdscr.echochar(c)
 
 
 async def start():
@@ -99,5 +117,7 @@ async def start():
 config = Config()
 loop = asyncio.get_event_loop()
 dc = mtproto.datacenter.Datacenter()
+if 'datacenter' in config:
+    dc.config = config['datacenter']
 
 loop.run_until_complete(start())
