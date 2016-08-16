@@ -7,8 +7,8 @@ import appdirs
 from ruamel import yaml
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
-import mtproto.datacenter
-
+from mtproto import datacenter, scheme
+from mtproto.mtbytearray import MTByteArray
 
 class Config:
     CONFIG_DIR = appdirs.user_config_dir('telecli')
@@ -104,7 +104,9 @@ async def main(stdscr):
             stdscr.move(half_y + 2, half_x - 7 + len(phone_num))
             stdscr.delch()
         elif c == curses.KEY_ENTER:
-            # register phone number
+            obj = scheme.TLAuthSendCode(MTByteArray(phone_num.encode('ascii')), api_id=config['api_id'],
+                                        api_hash=api_hash)
+
             pass
         elif ord('0') <= c <= ord('9') and len(phone_num) <= 15:
             phone_num += chr(c)
@@ -116,8 +118,9 @@ async def start():
 
 config = Config()
 loop = asyncio.get_event_loop()
-dc = mtproto.datacenter.Datacenter()
+dc = datacenter.Datacenter()
 if 'datacenter' in config:
     dc.config = config['datacenter']
+api_hash = MTByteArray(config['api_hash'].encode('ascii'))
 
 loop.run_until_complete(start())

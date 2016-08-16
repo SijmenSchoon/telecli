@@ -1,4 +1,5 @@
-import struct, math
+import math
+import struct
 
 
 class MTByteArray:

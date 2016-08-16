@@ -3,14 +3,13 @@ import hashlib
 import os
 import struct
 import time
-from binascii import crc32
 
 from Crypto.PublicKey import RSA
 from Crypto.Util.strxor import strxor
 from sympy.ntheory import factorint
 
 import mtproto
-from mtproto import exceptions, messages, scheme
+from mtproto import exceptions, scheme
 from mtproto.mtbytearray import MTByteArray
 
 
@@ -33,6 +32,9 @@ class Datacenter:
         self.server_salt = None
         self.auth_key = None
         self.auth_key_id = 0
+        self.session_id = os.urandom(8)
+
+        self.__first_message = True
 
     @property
     def config(self):
@@ -67,53 +69,89 @@ class Datacenter:
 
     async def connect(self):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
+        self.__first_message = True
 
-    def write_message(self, message):
-        message_b = message.serialize()
+    def send_message(self, message):
+        message_id = mtproto.generate_message_id().to_bytes(8, 'little')
 
-        # Calculate the metadata
-        message_len = (len(message_b) + 12).to_bytes(4, 'little')
-        sequence_number = self.sequence_number_out.to_bytes(4, 'little')
+        if self.auth_key is None or self.server_salt is None:
+            # Send the data unencrypted
+            data = bytes(8) + message_id + len(message).to_bytes(4, 'little') + message
+        else:
+            # Encrypt the data
+            to_encrypt = (self.server_salt + self.session_id + message_id +
+                          self.sequence_number_out.to_bytes(4, 'little') + len(message).to_bytes(4, 'little') + message)
+            key = hashlib.sha1(to_encrypt).digest[-16:]
+            padding = os.urandom(-len(to_encrypt) % 16)
+            aes_key, aes_iv = mtproto.aes_calculate(key, self.auth_key)
+            data = self.auth_key_id + key + mtproto.aes_ige(to_encrypt + padding, aes_key, aes_iv, 'encrypt')
+
+        # If this is the first message, prepend it with 0xEF to indicate the abridged protocol
+        if self.__first_message:
+            payload = bytearray(b'\xef')
+            self.__first_message = False
+        else:
+            payload = bytearray(b'')
+
+        # Calculate the (abridged) length
+        length = len(data) // 4
+        if length > 0x7e:
+            payload.append(0x7f)
+            payload.extend(length.to_bytes(3, 'little'))
+        else:
+            payload.append(length)
+
+        payload.extend(data)
         self.sequence_number_out += 1
 
-        crc = crc32(message_len + sequence_number + message_b).to_bytes(4, 'little')
+        self.writer.write(bytes(payload))
 
-        buf = message_len + sequence_number + message_b + crc
-        self.writer.write(buf)
-
-    async def read_message(self):
+    async def recv_message(self):
         # Read the length
-        message_len = int.from_bytes(await self.reader.read(4), 'little')
+        length = ord(await self.reader.read(1))
+        if length > 0x7e:
+            length = int.from_bytes(await self.reader.read(3), 'little')
+        length *= 4
 
-        buf = await self.reader.read(message_len - 4)
-        sequence_number, payload, crc = struct.unpack('I%dsI' % (message_len - 12), buf)
+        data = await self.reader.read(length)
+        auth_key_id = int.from_bytes(data[:8], 'little')
+        if auth_key_id == 0:
+            # Data is not encrypted
+            message_length, = struct.unpack_from('8xI', data, 8)
+            return data[20:message_length + 20]
+        elif auth_key_id == self.auth_key_id:
+            # Data is encrypted
+            message_key = data[8:24]
+            encrypted_data = data[24:]
 
-        # Check the sequence number
-        if sequence_number != self.sequence_number_in:
-            raise exceptions.SequenceNumberMismatchError('Expected %d, got %d' %
-                                                         (self.sequence_number_in, sequence_number))
-        self.sequence_number_in += 1
+            aes_key, aes_iv = mtproto.aes_calculate(message_key, self.auth_key, 'client')
+            decrypted_data = mtproto.aes_ige(encrypted_data, aes_key, aes_iv, 'decrypt')
 
-        # Check the CRC
-        own_crc = crc32(struct.pack('II%ds' % len(payload), message_len, sequence_number, payload))
-        if crc != own_crc:
-            raise exceptions.HashMismatchError('Expected {:#x}, got {:#x}'.format(own_crc, crc))
+            # Check the salt and session id (TODO make exceptions for this)
+            assert decrypted_data[:8] == self.server_salt
+            assert decrypted_data[8:16] == self.session_id
 
-        message = messages.UnencryptedMessage()
-        message.deserialize(payload)
+            # Check the sequence number
+            seq_no = int.from_bytes(decrypted_data[24:28], 'little')
+            if seq_no != self.sequence_number_in:
+                raise exceptions.SequenceNumberMismatchError('Expected %d, got %d' %
+                                                             (self.sequence_number_in, seq_no))
+            self.sequence_number_in += 1
 
-        return message
+            message_length = int.from_bytes(decrypted_data[28:32], 'little')
+            return decrypted_data[32:32 + message_length]
+        else:
+            # TODO make an exception for this
+            raise Exception('unknown auth_key id')
 
     async def handshake(self):
         # Request a pq variable from the server
         nonce = os.urandom(16)
         obj = scheme.TLReqPQ(nonce=nonce)
-        msg = messages.UnencryptedMessage(message_data=obj.serialize())
-        self.write_message(msg)
+        self.send_message(obj.serialize())
 
         # Receive the pq variable from the server
-        msg = await self.read_message()
-        obj = scheme.deserialize(msg.message_data, 0)
+        obj = scheme.deserialize(await self.recv_message(), 0)
         server_nonce = obj.server_nonce
         self.public_key_fingerprint = obj.server_public_key_fingerprints[0]
         if obj.nonce != nonce:
@@ -143,12 +181,10 @@ class Datacenter:
         obj = scheme.TLReqDHParams(nonce=nonce, server_nonce=server_nonce, p=p_ba, q=q_ba,
                                    public_key_fingerprint=self.public_key_fingerprint,
                                    encrypted_data=MTByteArray(encrypted_data))
-        msg = messages.UnencryptedMessage(message_data=obj.serialize())
-        self.write_message(msg)
+        self.send_message(obj.serialize())
 
         # Receive the response and decrypt it
-        msg = await self.read_message()
-        obj = scheme.deserialize(msg.message_data, 0)
+        obj = scheme.deserialize(await self.recv_message(), 0)
         if obj.nonce != nonce or obj.server_nonce != server_nonce:
             raise exceptions.NonceMismatchError
 
@@ -196,10 +232,9 @@ class Datacenter:
         for i in range(15):
             obj = scheme.TLSetClientDHParams(nonce=nonce, server_nonce=server_nonce,
                                              encrypted_data=MTByteArray(encrypted_data))
-            msg = messages.UnencryptedMessage(message_data=obj.serialize())
-            self.write_message(msg)
-            msg = await self.read_message()
-            obj = scheme.deserialize(msg.message_data, 0)
+            self.send_message(obj.serialize())
+
+            obj = scheme.deserialize(await self.recv_message(), 0)
             if obj.nonce != nonce or obj.server_nonce != server_nonce:
                 raise exceptions.NonceMismatchError
 
@@ -217,6 +252,7 @@ class Datacenter:
                 self.server_salt = strxor(new_nonce[:8], server_nonce[:8])
                 self.auth_key = auth_key_b
                 self.auth_key_id = int.from_bytes(auth_key_sha[-8:], 'little')
+                return
             elif obj.result == 'retry':
                 if obj.new_nonce_hash != new_nonce_hashes[1]:
                     raise exceptions.NonceMismatchError
@@ -225,4 +261,6 @@ class Datacenter:
                     raise exceptions.NonceMismatchError
                 raise exceptions.HandshakeError('server did not accept DH parameters')
             else:
-                raise Exception('Invalid response from server')
+                raise Exception('Invalid response from server: {}'.format(obj.result))
+
+        raise exceptions.HandshakeError('DH negotiation failed after 15 tries')

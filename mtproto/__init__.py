@@ -1,5 +1,6 @@
 import random
 import time
+import hashlib
 
 from Crypto.Cipher import AES
 from Crypto.Util.strxor import strxor
@@ -8,6 +9,20 @@ from Crypto.Util.strxor import strxor
 def generate_message_id():
     # Return the time in seconds * 2^32
     return int(time.time() * 2 ** 32)
+
+
+def aes_calculate(key, auth_key, dir='server'):
+    if dir == 'client':
+        auth_key = auth_key[8:]
+    hash_a = hashlib.sha1(key + auth_key[:32]).digest()
+    hash_b = hashlib.sha1(auth_key[32:48] + key + auth_key[48:64]).digest()
+    hash_c = hashlib.sha1(auth_key[64:96] + key).digest()
+    hash_d = hashlib.sha1(key + auth_key[96:128]).digest()
+
+    return (
+        hash_a[:8] + hash_b[8:20] + hash_c[4:16],
+        hash_a[8:20] + hash_b[:8] + hash_c[16:20] + hash_d[:8]
+    )
 
 
 def aes_ige(data, key, iv, operation):

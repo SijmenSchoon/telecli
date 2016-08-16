@@ -302,6 +302,8 @@ __add_object(TLMessage)
 
 
 class DHGen:
+    MAGIC = 0xdeadbeef
+
     def __init__(self, buffer=None, offset=0):
         self.nonce = bytes()
         self.server_nonce = bytes()
@@ -982,3 +984,22 @@ class TLDcOption:
                                                                      self.id, self.ip_address, self.port)
 
 __add_object(TLDcOption)
+
+
+class TLAuthSendCode:
+    MAGIC = 0x768d5f4d
+
+    def __init__(self, phone_number=MTByteArray(), sms_type=0, api_id=0, api_hash=MTByteArray(),
+                 lang_code=MTByteArray(b'en')):
+        self.phone_number = phone_number
+        self.sms_type = sms_type
+        self.api_id = api_id
+        self.api_hash = api_hash
+        self.lang_code = lang_code
+
+    def deserialize(self, buffer, offset=0):
+        raise NotImplementedError
+
+    def serialize(self):
+        return (self.MAGIC.to_bytes(4, 'little') + self.phone_number.serialize() + self.sms_type.to_bytes(4, 'little') +
+                self.api_id.to_bytes(4, 'little') + self.api_hash.serialize() + self.lang_code.serialize())
